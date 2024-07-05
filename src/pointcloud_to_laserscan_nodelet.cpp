@@ -128,8 +128,10 @@ void PointCloudToLaserScanNodelet::onInit()
 
   // segmentation of point cloud using z axis height relative to flat ground
   // this is debug topic for visualization of filtered point cloud
-  pointcloud_filtered_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("pointcloud_filter", 1000, boost::bind(&PointCloudToLaserScanNodelet::connectCb, this),
-                                               boost::bind(&PointCloudToLaserScanNodelet::disconnectCb, this));
+  if (enable_debug_mode_) {
+    pointcloud_filtered_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("pointcloud_filter", 1000, boost::bind(&PointCloudToLaserScanNodelet::connectCb, this),
+                                                boost::bind(&PointCloudToLaserScanNodelet::disconnectCb, this));
+  }
 
   // set offset, the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
   ROS_ERROR("[pointcloud_to_laserscan_nodelet] origin min_height = %f, origin max_height = %f", min_height_, max_height_);
