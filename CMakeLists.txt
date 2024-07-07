@@ -3,6 +3,8 @@ project(pointcloud_to_laserscan)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3")
 
+find_package(OpenMP REQUIRED) // add openmp lib
+
 find_package(catkin REQUIRED COMPONENTS
   laser_geometry
   message_filters
