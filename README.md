@@ -1,3 +1,11 @@
+## Introduction 
+
+The following section is for parameters related to pointcloud_to_laserscan nodelet
+
+ref: http://wiki.ros.org/pointcloud_to_laserscan
+ref: https://github.com/ros-perception/pointcloud_to_laserscan
+ref: https://github.com/ros-gbp/pointcloud_to_laserscan-release
+
 ## Node
 
 ### pointcloud_to_laserscan_node
@@ -7,6 +15,7 @@ pointcloud_to_laserscan_node takes a point cloud and generates a 2D laser scan b
 #### Subscribed Topics
 
 cloud_in (sensor_msgs/PointCloud2)
+
 The input point cloud.
 
 #### Published Topics
@@ -18,83 +27,65 @@ The output laser scan.
 
 ~min_height (double, default: 0.0)
 
-```
-The minimum height to sample in the point cloud in meters.
-```
+    The minimum height to sample in the point cloud in meters.
 
 ~max_height (double, default: 1.0)
-```
-The maximum height to sample in the point cloud in meters.
-```
+
+    The maximum height to sample in the point cloud in meters.
 
 ~angle_min (double, default: -π/2)
-```
-The minimum scan angle in radians.
-```
+
+    The minimum scan angle in radians.
 
 ~angle_max (double, default: π/2)
-```
-The maximum scan angle in radians.
-```
+
+    The maximum scan angle in radians.
 
 ~angle_increment (double, default: π/360)
-```
-Resolution of laser scan in radians per ray.
-```
+
+    Resolution of laser scan in radians per ray.
 
 ~scan_time (double, default: 1.0/30.0)
-```
-The scan rate in seconds.
-```
+
+    The scan rate in seconds.
 
 ~range_min (double, default: 0.45)
-```
-The minimum ranges to return in meters.
-```
+
+    The minimum ranges to return in meters.
 
 ~range_max (double, default: 4.0)
-```
-The maximum ranges to return in meters.
-```
+
+    The maximum ranges to return in meters.
 
 ~target_frame (str, default: none)
-```
-If provided, transform the pointcloud into this frame before converting to a laser scan. Otherwise, laser scan will be generated in the same frame as the input point cloud.
-```
+
+    If provided, transform the pointcloud into this frame before converting to a laser scan. Otherwise, laser scan will be generated in the same frame as the input point cloud.
 
 ~concurrency_level (int, default: 1)
-```
-Number of threads to use for processing pointclouds. If 0, automatically detect number of cores and use the equivalent number of threads. Input queue size for pointclouds is tied to this parameter. In nodelet form, number of threads is capped by the nodelet manager configuration.
-```
+
+    Number of threads to use for processing pointclouds. If 0, automatically detect number of cores and use the equivalent number of threads. Input queue size for pointclouds is tied to this parameter. In nodelet form, number of threads is capped by the nodelet manager configuration.
 
 ~use_inf (boolean, default: true)
-```
-If disabled, report infinite range (no obstacle) as range_max + 1. Otherwise report infinite range as +inf. Associated with the inf_is_valid parameter for costmap_2d obstacle layers.
-```
+
+    If disabled, report infinite range (no obstacle) as range_max + 1. Otherwise report infinite range as +inf. Associated with the inf_is_valid parameter for costmap_2d obstacle layers.
 
 ## Nodelet
 
 Same API as node, available as pointcloud_to_laserscan/pointcloud_to_laserscan_nodelet.
 
-
 ##### Metalform Parameters
 
 tf_z_offset (double, default: 0.25)
-```
-the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground. using aucobot prototype with diff wheel radius 0.25 z axis offset between flat ground to base_link origin.
-```
+
+    the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground. using aucobot prototype with diff wheel radius 0.25 z axis offset between flat ground to base_link origin.
 
 enable_debug_mode (bool, default: false)
 
-```
-set bool flag for pointcloud_filtered_pub_ enable debug mode
-```
+    set bool flag for pointcloud_filtered_pub_ enable debug mode
 
 robot_frame (string, default: "base_link") 
 
-```
-robot frame name, by default "base_link"
-```
+    robot frame name, by default "base_link"
 
 ## pointcloud_to_laserscan (noetic) - 1.4.1-1
 
