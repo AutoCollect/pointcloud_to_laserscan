@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(pointcloud_to_laserscan)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3")
+
+# add openmp lib
+find_package(OpenMP REQUIRED)
+
 find_package(catkin REQUIRED COMPONENTS
   laser_geometry
   message_filters
@@ -10,6 +15,8 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   tf2_ros
   tf2_sensor_msgs
+  pcl_ros
+  pcl_conversions
 )
 
 catkin_package(

@@ -2,6 +2,12 @@
 Changelog for package pointcloud_to_laserscan
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.4.2 (2024-07-05)
+------------------
+* for Metalform autofert project perception developpment based on pointcloud_to_laserscan 1.4.1 (ros noetic version)
+* img/image.png Campbell's design (05/13)
+* img/scan_rviz.png the results using Gemini 2XL as front camera
+
 1.4.1 (2019-08-30)
 ------------------
 * LaserScan to PointCloud node + nodelet (`#28 <https://github.com/ros-perception/pointcloud_to_laserscan/issues/28>`_)

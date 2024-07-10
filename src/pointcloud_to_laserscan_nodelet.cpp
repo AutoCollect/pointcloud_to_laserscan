@@ -45,6 +45,13 @@
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <string>
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+// pcl filter
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/passthrough.h>
+// openmp
+#include <omp.h>
 
 namespace pointcloud_to_laserscan
 {
@@ -69,6 +76,16 @@ void PointCloudToLaserScanNodelet::onInit()
   private_nh_.param<double>("range_min", range_min_, 0.0);
   private_nh_.param<double>("range_max", range_max_, std::numeric_limits<double>::max());
   private_nh_.param<double>("inf_epsilon", inf_epsilon_, 1.0);
+
+  // the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
+  // using aucobot prototype with diff wheel radius 0.25 z axis offset between flat ground to base_link origin
+  private_nh_.param<double>("tf_z_offset", tf_z_offset_, 0.25);
+
+  // set bool flag for pointcloud_filtered_pub_ enable debug mode
+  private_nh_.param<bool>("enable_debug_mode", enable_debug_mode_, false);
+
+  // robot frame name, by default "base_link"
+  private_nh_.param<std::string>("robot_frame", robot_frame_, "base_link");
 
   int concurrency_level;
   private_nh_.param<int>("concurrency_level", concurrency_level, 1);
@@ -110,6 +127,19 @@ void PointCloudToLaserScanNodelet::onInit()
 
   pub_ = nh_.advertise<sensor_msgs::LaserScan>("scan", 10, boost::bind(&PointCloudToLaserScanNodelet::connectCb, this),
                                                boost::bind(&PointCloudToLaserScanNodelet::disconnectCb, this));
+
+  // segmentation of point cloud using z axis height relative to flat ground
+  // this is debug topic for visualization of filtered point cloud
+  if (enable_debug_mode_) {
+    pointcloud_filtered_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("pointcloud_filter", 1000, boost::bind(&PointCloudToLaserScanNodelet::connectCb, this),
+                                                boost::bind(&PointCloudToLaserScanNodelet::disconnectCb, this));
+  }
+
+  // set offset, the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
+  ROS_ERROR("[pointcloud_to_laserscan_nodelet] origin min_height = %f, origin max_height = %f", min_height_, max_height_);
+  min_height_ -= tf_z_offset_;
+  max_height_ -= tf_z_offset_;
+  ROS_ERROR("[pointcloud_to_laserscan_nodelet] tf_z_offset = %f, offset min_height = %f, offset max_height = %f", tf_z_offset_, min_height_, max_height_);
 }
 
 void PointCloudToLaserScanNodelet::connectCb()
@@ -181,7 +211,9 @@ void PointCloudToLaserScanNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPt
     try
     {
       cloud.reset(new sensor_msgs::PointCloud2);
-      tf2_->transform(*cloud_msg, *cloud, target_frame_, ros::Duration(tolerance_));
+      // transform all point clouds to the same coordinate system under base_link frame
+      // this is easy to trim/segment different point clouds in the same frame
+      tf2_->transform(*cloud_msg, *cloud, robot_frame_, ros::Duration(tolerance_));
       cloud_out = cloud;
     }
     catch (tf2::TransformException& ex)
@@ -195,7 +227,50 @@ void PointCloudToLaserScanNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPt
     cloud_out = cloud_msg;
   }
 
+  // Convert the transformed point cloud ROS PointCloud2 message to a PCL PointCloud
+  pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_pcl_cloud_in(new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::fromROSMsg(*cloud_out, *transformed_pcl_cloud_in);
+
+  // Create a new PCL PointCloud for the filtered points
+  pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+
+  // Create the passthrough filter
+  pcl::PassThrough<pcl::PointXYZ> pass;
+
+  // passthrough keep points between min_height & max_height
+  pass.setInputCloud(transformed_pcl_cloud_in);
+  pass.setFilterFieldName("z");
+  pass.setFilterLimits(min_height_, max_height_);
+  pass.filter(*filtered_pcl_cloud);
+
+  // Convert the filtered PCL PointCloud back to a ROS PointCloud2 message
+  sensor_msgs::PointCloud2 ros_output_cloud;
+  pcl::toROSMsg(*filtered_pcl_cloud, ros_output_cloud);
+
+  // Set the header of the output message with robot_frame name
+  ros_output_cloud.header = cloud_msg->header;
+  ros_output_cloud.header.frame_id = robot_frame_;
+
+  // Publish the filtered point cloud
+  // if debug mode enable flag is true
+  if (enable_debug_mode_) {
+    pointcloud_filtered_pub_.publish(ros_output_cloud);
+  }
+
+  // transform the filtered point cloud from robot frame to target frame after trimming/segmentation/filtering 
+  try {
+    cloud.reset(new sensor_msgs::PointCloud2);
+    tf2_->transform(ros_output_cloud, *cloud, target_frame_, ros::Duration(tolerance_));
+    cloud_out = cloud;
+  }
+  catch (tf2::TransformException& ex) {
+    NODELET_ERROR_STREAM("Transform failure: " << ex.what());
+    return;
+  }
+
   // Iterate through pointcloud
+  // Parallelize this section using OpenMP
+  #pragma omp parallel for
   for (sensor_msgs::PointCloud2ConstIterator<float> iter_x(*cloud_out, "x"), iter_y(*cloud_out, "y"),
        iter_z(*cloud_out, "z");
        iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
@@ -203,12 +278,6 @@ void PointCloudToLaserScanNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPt
     if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z))
     {
       NODELET_DEBUG("rejected for nan in point(%f, %f, %f)\n", *iter_x, *iter_y, *iter_z);
-      continue;
-    }
-
-    if (*iter_z > max_height_ || *iter_z < min_height_)
-    {
-      NODELET_DEBUG("rejected for height %f not in range (%f, %f)\n", *iter_z, min_height_, max_height_);
       continue;
     }
 

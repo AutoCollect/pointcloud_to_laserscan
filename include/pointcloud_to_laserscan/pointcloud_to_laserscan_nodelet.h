@@ -90,6 +90,19 @@ private:
   double min_height_, max_height_, angle_min_, angle_max_, angle_increment_, scan_time_, range_min_, range_max_;
   bool use_inf_;
   double inf_epsilon_;
+
+  // segmentation of point cloud using z axis height relative to flat ground
+  // this is debug topic for visualization of filtered point cloud
+  ros::Publisher pointcloud_filtered_pub_;
+
+  // set bool flag for pointcloud_filtered_pub_ enable debug mode
+  bool enable_debug_mode_; 
+
+  // the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
+  double tf_z_offset_;
+
+  // robot frame name, by default "base_link"
+  std::string robot_frame_;
 };
 
 }  // namespace pointcloud_to_laserscan
