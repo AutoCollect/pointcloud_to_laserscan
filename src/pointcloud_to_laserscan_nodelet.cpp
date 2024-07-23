@@ -136,10 +136,10 @@ void PointCloudToLaserScanNodelet::onInit()
   }
 
   // set offset, the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
-  ROS_ERROR("[pointcloud_to_laserscan_nodelet] origin min_height = %f, origin max_height = %f", min_height_, max_height_);
+  ROS_INFO("[pointcloud_to_laserscan_nodelet] origin min_height = %f, origin max_height = %f", min_height_, max_height_);
   min_height_ -= tf_z_offset_;
   max_height_ -= tf_z_offset_;
-  ROS_ERROR("[pointcloud_to_laserscan_nodelet] tf_z_offset = %f, offset min_height = %f, offset max_height = %f", tf_z_offset_, min_height_, max_height_);
+  ROS_INFO("[pointcloud_to_laserscan_nodelet] tf_z_offset = %f, offset min_height = %f, offset max_height = %f", tf_z_offset_, min_height_, max_height_);
 }
 
 void PointCloudToLaserScanNodelet::connectCb()
