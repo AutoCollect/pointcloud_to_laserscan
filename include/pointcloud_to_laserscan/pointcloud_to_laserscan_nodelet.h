@@ -98,8 +98,6 @@ private:
   // segmentation of point cloud using z axis height relative to flat ground
   // this is debug topic for visualization of filtered point cloud
   ros::Publisher pointcloud_filtered_pub_;
-  // debug usage for point cloud process
-  // ros::Publisher pointcloud_process_filtered_pub_;
 
   // set bool flag for pointcloud_filtered_pub_ enable debug mode
   bool enable_debug_mode_;
