@@ -50,6 +50,7 @@
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/common/transforms.h>  // pcl::transformPointCloud
 // openmp
 #include <omp.h>
 
@@ -69,6 +70,11 @@ void PointCloudToLaserScanNodelet::onInit()
   private_nh_.param<double>("min_height", min_height_, std::numeric_limits<double>::min());
   private_nh_.param<double>("max_height", max_height_, std::numeric_limits<double>::max());
 
+  // filter by inclination angle in radian relative to 
+  // the origin of camera center project to the ground plan
+  // radians angle upward, the rotation (pitch of certain degrees around the Y-axis)
+  private_nh_.param<double>("inclination_angle", inclination_angle_, 0.0);
+
   private_nh_.param<double>("angle_min", angle_min_, -M_PI);
   private_nh_.param<double>("angle_max", angle_max_, M_PI);
   private_nh_.param<double>("angle_increment", angle_increment_, M_PI / 180.0);
@@ -77,8 +83,11 @@ void PointCloudToLaserScanNodelet::onInit()
   private_nh_.param<double>("range_max", range_max_, std::numeric_limits<double>::max());
   private_nh_.param<double>("inf_epsilon", inf_epsilon_, 1.0);
 
-  // the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
-  // using aucobot prototype with diff wheel radius 0.25 z axis offset between flat ground to base_link origin
+  // the x offset between base_link origin and camera center, according to description file 0.91 m
+  private_nh_.param<double>("tf_x_offset", tf_x_offset_, 0.91);
+
+  // the base_link z axis offset relative to the flat ground plane, we suppose base_link xOy plane is parallel with flat ground.
+  // in this case is the radius of rear wheel 0.25 m
   private_nh_.param<double>("tf_z_offset", tf_z_offset_, 0.25);
 
   // set bool flag for pointcloud_filtered_pub_ enable debug mode
@@ -133,13 +142,15 @@ void PointCloudToLaserScanNodelet::onInit()
   if (enable_debug_mode_) {
     pointcloud_filtered_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("pointcloud_filter", 1000, boost::bind(&PointCloudToLaserScanNodelet::connectCb, this),
                                                 boost::bind(&PointCloudToLaserScanNodelet::disconnectCb, this));
+    // pointcloud_process_filtered_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("pointcloud_process_filter", 1000, boost::bind(&PointCloudToLaserScanNodelet::connectCb, this),
+    //                                             boost::bind(&PointCloudToLaserScanNodelet::disconnectCb, this));
   }
 
   // set offset, the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
   ROS_INFO("[pointcloud_to_laserscan_nodelet] origin min_height = %f, origin max_height = %f", min_height_, max_height_);
   min_height_ -= tf_z_offset_;
   max_height_ -= tf_z_offset_;
-  ROS_INFO("[pointcloud_to_laserscan_nodelet] tf_z_offset = %f, offset min_height = %f, offset max_height = %f", tf_z_offset_, min_height_, max_height_);
+  ROS_INFO("[pointcloud_to_laserscan_nodelet] tf_z_offset = %f, offset min_height = %f, offset max_height = %f, inclination_angle = %f", tf_z_offset_, min_height_, max_height_, inclination_angle_);
 }
 
 void PointCloudToLaserScanNodelet::connectCb()
@@ -243,18 +254,59 @@ void PointCloudToLaserScanNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPt
   pass.setFilterLimits(min_height_, max_height_);
   pass.filter(*filtered_pcl_cloud);
 
+  //----------------------------------------------------------
+  // after z axis height filter, then angle inclination filter
+  //----------------------------------------------------------
+
+  // Step 1: Translate the point cloud so base_point becomes the origin (0.91, 0, -0.25) camera center project to ground plane
+  Eigen::Affine3f translation_to_origin = Eigen::Affine3f::Identity();
+  translation_to_origin.translation() << -tf_x_offset_, 0.0, tf_z_offset_;
+
+  // Step 2: Define the rotation (pitch of certain degrees around the Y-axis)
+  Eigen::Affine3f pitch_rotation_transform = Eigen::Affine3f::Identity();
+  pitch_rotation_transform.rotate(Eigen::AngleAxisf(inclination_angle_, Eigen::Vector3f::UnitY()));
+
+  // Step 3: Translate back to the original position (0.91, 0, -0.25)
+  Eigen::Affine3f translation_back = Eigen::Affine3f::Identity();
+  translation_back.translation() <<  tf_x_offset_, 0, -tf_z_offset_;
+
+  // Step 4: transformation & Transform the point cloud
+  Eigen::Affine3f transform = translation_back * pitch_rotation_transform * translation_to_origin;
+  pcl::transformPointCloud(*filtered_pcl_cloud, *filtered_pcl_cloud, transform);
+
+  // Create a new cloud and copy the data for debug usage
+  // pcl::PointCloud<pcl::PointXYZ>::Ptr copied_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  // *copied_cloud = *filtered_pcl_cloud;  // Copies the entire source_cloud into copied_cloud
+
+  // Apply PassThrough filter in the Z-axis (height) in the transformed frame
+  pass.setInputCloud(filtered_pcl_cloud);
+  pass.setFilterFieldName("z");
+  pass.setFilterLimits(-tf_z_offset_, std::numeric_limits<float>::max()); // keep points above the plane
+  pass.filter(*filtered_pcl_cloud);
+
+  // Transform back to the original frame
+  Eigen::Affine3f inverse_transform = transform.inverse();
+  pcl::transformPointCloud(*filtered_pcl_cloud, *filtered_pcl_cloud, inverse_transform);
+
   // Convert the filtered PCL PointCloud back to a ROS PointCloud2 message
   sensor_msgs::PointCloud2 ros_output_cloud;
   pcl::toROSMsg(*filtered_pcl_cloud, ros_output_cloud);
+
+  // sensor_msgs::PointCloud2 ros_output_process_cloud;
+  // pcl::toROSMsg(*copied_cloud, ros_output_process_cloud);
 
   // Set the header of the output message with robot_frame name
   ros_output_cloud.header = cloud_msg->header;
   ros_output_cloud.header.frame_id = robot_frame_;
 
+  // ros_output_process_cloud.header = cloud_msg->header;
+  // ros_output_process_cloud.header.frame_id = robot_frame_;
+
   // Publish the filtered point cloud
   // if debug mode enable flag is true
   if (enable_debug_mode_) {
     pointcloud_filtered_pub_.publish(ros_output_cloud);
+    // pointcloud_process_filtered_pub_.publish(ros_output_process_cloud);
   }
 
   // transform the filtered point cloud from robot frame to target frame after trimming/segmentation/filtering 
