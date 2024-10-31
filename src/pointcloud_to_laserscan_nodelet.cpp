@@ -256,7 +256,7 @@ void PointCloudToLaserScanNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPt
   Eigen::Affine3f pitch_rotation_transform = Eigen::Affine3f::Identity();
   pitch_rotation_transform.rotate(Eigen::AngleAxisf(inclination_angle_, Eigen::Vector3f::UnitY()));
 
-  // Step 3: Translate back to the original position (0.91, 0, -0.25)
+  // Step 3: Translate back to the original position (0.91, 0, min_height_)
   Eigen::Affine3f min_translation_back = Eigen::Affine3f::Identity();
   min_translation_back.translation() << tf_x_offset_, 0.0, min_height_;
 
@@ -278,7 +278,7 @@ void PointCloudToLaserScanNodelet::cloudCb(const sensor_msgs::PointCloud2ConstPt
   Eigen::Affine3f max_translation_to_origin = Eigen::Affine3f::Identity();
   max_translation_to_origin.translation() << -tf_x_offset_, 0.0, -max_height_;
 
-  // Step 8: Translate back to the original position (0.91, 0, -0.25)
+  // Step 8: Translate back to the original position (0.91, 0, max_height)
   Eigen::Affine3f max_translation_back = Eigen::Affine3f::Identity();
   max_translation_back.translation() <<  tf_x_offset_, 0, max_height_;
 
