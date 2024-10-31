@@ -88,6 +88,10 @@ private:
   std::string target_frame_;
   double tolerance_;
   double min_height_, max_height_, angle_min_, angle_max_, angle_increment_, scan_time_, range_min_, range_max_;
+  // filter by inclination angle in radian relative to 
+  // the origin of camera center project to the ground plan
+  // radians angle upward, the rotation (pitch of certain degrees around the Y-axis)
+  double inclination_angle_;
   bool use_inf_;
   double inf_epsilon_;
 
@@ -96,9 +100,12 @@ private:
   ros::Publisher pointcloud_filtered_pub_;
 
   // set bool flag for pointcloud_filtered_pub_ enable debug mode
-  bool enable_debug_mode_; 
+  bool enable_debug_mode_;
 
-  // the base_link z axis offset relative to the falt ground, we suppose base_link xOy plane is parallel with flat ground.
+  // the x offset between base_link origin and camera center, according to description file 0.91 m
+  double tf_x_offset_;
+  // the base_link z axis offset relative to the flat ground plane, we suppose base_link xOy plane is parallel with flat ground.
+  // in this case is the radius of rear wheel 0.25 m
   double tf_z_offset_;
 
   // robot frame name, by default "base_link"
